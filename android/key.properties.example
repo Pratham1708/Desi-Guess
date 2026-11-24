@@ -1,0 +1,4 @@
+storePassword=CHANGE_ME_STORE_PASSWORD
+keyPassword=CHANGE_ME_KEY_PASSWORD
+keyAlias=desi-guess-release
+storeFile=../upload-keystore.jks

@@ -1,0 +1,86 @@
+name: desi_guess
+description: "DESI GUESS — Indian two-player deduction and guessing game with randomized 10-card boards, local & online multiplayer."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.11.5 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State Management & Navigation
+  flutter_riverpod: ^2.6.1
+  go_router: ^14.8.1
+
+  # Typography, Animations & UI
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.2
+  confetti: ^0.8.0
+  cached_network_image: ^3.4.1
+
+  # Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.5.2
+
+  # Firebase Backend (initialized only when --dart-define=ENABLE_FIREBASE=true)
+  firebase_core: ^3.12.1
+  firebase_auth: ^5.5.1
+  cloud_firestore: ^5.6.5
+  cloud_functions: ^5.3.4
+  firebase_app_check: ^0.3.2+4
+  firebase_crashlytics: ^4.3.4
+  firebase_analytics: ^11.4.4
+  firebase_storage: ^12.4.4
+
+  # Utilities & Media
+  uuid: ^4.5.1
+  intl: ^0.20.2
+  share_plus: ^10.1.4
+  audioplayers: ^6.4.0
+  equatable: ^2.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/images/
+    - assets/illustrations/
+    - assets/animations/
+    - assets/sounds/
+    - assets/cards/
+    - assets/cards/who/actors/
+    - assets/cards/who/actresses/
+    - assets/cards/who/cricketers/
+    - assets/cards/who/influencers/
+    - assets/cards/who/politicians/
+    - assets/cards/who/singers/
+    - assets/cards/who/cartoons/
+    - assets/cards/who/television/
+    - assets/cards/who/sports/
+    - assets/cards/who/memes/
+    - assets/cards/what/food/
+    - assets/cards/what/brands/
+    - assets/cards/what/vehicles/
+    - assets/cards/what/movies/
+    - assets/cards/what/household/
+    - assets/cards/what/technology/
+    - assets/cards/what/snacks/
+    - assets/cards/what/products/
+    - assets/cards/where/cities/
+    - assets/cards/where/attractions/
+    - assets/cards/where/states/
+    - assets/cards/where/monuments/
+    - assets/cards/where/colleges/
+    - assets/cards/where/destinations/

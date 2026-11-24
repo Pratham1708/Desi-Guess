@@ -1,0 +1,153 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isRoomMember(roomId) {
+      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return isSignedIn()
+        && (room.hostUid == request.auth.uid || room.guestUid == request.auth.uid);
+    }
+
+    // PRIVATE user document (email, privacy preferences, account settings).
+    // Strictly owner-only read; stat fields cannot be tampered with by clients.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.rating == 1000
+        && request.resource.data.wins == 0
+        && request.resource.data.losses == 0
+        && request.resource.data.totalGames == 0;
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['username', 'avatar', 'friends', 'allowFriendInvites', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // PUBLIC player profile for leaderboards & friend lookups (NO email or private data).
+    match /publicProfiles/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'uid', 'username', 'avatar', 'rating', 'wins', 'losses',
+          'totalGames', 'bestWinStreak', 'unlockedAchievements', 'updatedAt'
+        ])
+        && request.resource.data.rating == 1000
+        && request.resource.data.wins == 0
+        && request.resource.data.losses == 0
+        && request.resource.data.totalGames == 0;
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['username', 'avatar', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Rooms: readable ONLY by host or guest.
+    // All match state transitions (turns, guesses, completion) run inside Cloud Functions.
+    match /rooms/{roomId} {
+      allow read: if isSignedIn()
+        && (resource.data.hostUid == request.auth.uid || resource.data.guestUid == request.auth.uid);
+      allow create, delete: if false;
+      allow update: if isSignedIn()
+        && resource.data.hostUid == request.auth.uid
+        && resource.data.status == 'waiting'
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['category', 'boardPackId', 'updatedAt']);
+    }
+
+    // Room Players: readable by room members only.
+    // Clients can update ONLY their own ready/connected/lastSeenAt/eliminatedCardIds.
+    // Hearts, incorrectGuesses, secretSubmitted, and opponent state are server-only.
+    match /roomPlayers/{docId} {
+      allow read: if isSignedIn() && isRoomMember(resource.data.roomId);
+      allow create, delete: if false;
+      allow update: if isSignedIn()
+        && resource.data.playerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['ready', 'connected', 'lastSeenAt', 'eliminatedCardIds']);
+    }
+
+    // Private Secret Selections: STRICTLY owner read-only; ONLY Admin SDK Cloud Functions write.
+    match /privateSelections/{docId} {
+      allow read: if isSignedIn() && resource.data.playerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Messages: readable by room members; created ONLY via Cloud Functions;
+    // receiver may update ONLY `isRead` on messages sent by the opponent.
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && isRoomMember(resource.data.roomId);
+      allow create, delete: if false;
+      allow update: if isSignedIn()
+        && isRoomMember(resource.data.roomId)
+        && resource.data.senderUid != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+    }
+
+    // Game History: readable only by participants; written only by Cloud Functions.
+    match /gameHistory/{gameId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.playerIds;
+      allow write: if false;
+    }
+
+    // Public Card Packs catalog
+    match /cardPacks/{packId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Custom Boards: owner has full control; shared boards readable ONLY by explicitly allowed UIDs.
+    match /customBoards/{boardId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        (resource.data.visibility == 'shared'
+          && request.auth.uid in resource.data.allowedPlayerUids)
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.visibility in ['private', 'shared'];
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.visibility in ['private', 'shared'];
+      allow delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Friend Invites: STRICTLY scoped to sender and recipient.
+    match /friendInvites/{inviteId} {
+      allow read: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid
+            || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn() && (
+        // Recipient can ONLY accept or decline a pending invite
+        (resource.data.toUid == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt']))
+        ||
+        // Sender can ONLY cancel their own pending invite
+        (resource.data.fromUid == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt']))
+      );
+      allow delete: if isSignedIn() && resource.data.fromUid == request.auth.uid;
+    }
+  }
+}
